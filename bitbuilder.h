@@ -361,7 +361,7 @@ namespace bitbuilder
             {
                 if constexpr (sizeof...(Args) != 0)
                 {
-                    return check_arg_order_consistency_args<Args...>(new_val).first;
+                    return check_arg_order_consistency_args<Args...>(new_val);
                 }
                 else
                 {
