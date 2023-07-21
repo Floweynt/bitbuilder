@@ -76,6 +76,12 @@ namespace bitbuilder
             return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || (IsInput ? ch == '*' : (ch == '1' || ch == '0'));
         }
 
+        INLINE constexpr bool is_ignored(char ch)
+        {
+            return ch == ' ';
+        }
+
+
         INLINE constexpr char is_lower(char ch) { return 'a' <= ch && ch <= 'z'; }
         INLINE constexpr char is_upper(char ch) { return 'A' <= ch && ch <= 'Z'; }
 
@@ -90,6 +96,9 @@ namespace bitbuilder
 
             for (size_t i = 0; i < Name.size; i++)
             {
+                if(is_ignored(Name[i]))
+                    continue;
+
                 if (is_simple_token<IsInput>(Name[i]))
                 {
                     bit_length++;
@@ -147,6 +156,9 @@ namespace bitbuilder
 
             for (size_t i = 0; i < Name.size; i++)
             {
+                if(is_ignored(Name[i]))
+                    continue;
+
                 if (is_simple_token<IsInput>(Name[i]))
                 {
                     bit_length++;
@@ -179,6 +191,9 @@ namespace bitbuilder
 
             for (size_t i = 0; i < Name.size; i++)
             {
+                if(is_ignored(Name[i]))
+                    continue;
+
                 if (is_simple_token<IsInput>(Name[i]))
                 {
                     result[res_idx++] = Name[i];
@@ -381,8 +396,9 @@ namespace bitbuilder
 
             if (status)
                 return false;
-            else
+            else if constexpr(sizeof...(Args) != 0)
                 return !check_arg_order_consistency_args<Args...>(new_val);
+            return true;
         }
 
         template <bitarg_concept... Args>
