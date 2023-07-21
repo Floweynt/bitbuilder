@@ -266,7 +266,7 @@ namespace bitbuilder
             INLINE constexpr void set(bool bit)
             {
                 value = (value & ~(1 << I)) | (uint64_t(bit) << I);
-            };
+            }
             INLINE constexpr uint_bvec operator&(uint_bvec rhs) const { return value & (rhs.value); }
             INLINE constexpr uint_bvec operator|(uint_bvec rhs) const { return value | (rhs.value); }
 
