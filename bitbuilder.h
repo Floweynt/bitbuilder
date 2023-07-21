@@ -4,6 +4,15 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+
+#if defined(__clang__)
+#define INLINE [[clang::always_inline]]
+#elif defined(__GNUC__) || defined(__GNUG__)
+#define INLINE [[gnu::always_inline]]
+#else
+static_assert(false, "bad compiler");
+#endif
+
 namespace bitbuilder
 {
     namespace str
@@ -62,15 +71,15 @@ namespace bitbuilder
         };
 
         template <bool IsInput>
-        constexpr bool is_simple_token(char ch)
+        INLINE constexpr bool is_simple_token(char ch)
         {
             return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || (IsInput ? ch == '*' : (ch == '1' || ch == '0'));
         }
 
-        constexpr bool is_digit(char ch) { return '0' <= ch && ch <= '9'; }
+        INLINE constexpr bool is_digit(char ch) { return '0' <= ch && ch <= '9'; }
 
         template <str::string_literal Name, std::integral T, bool IsInput>
-        constexpr error_codes validate_fmt_str()
+        INLINE constexpr error_codes validate_fmt_str()
         {
             size_t bit_length = 0;
 
@@ -127,7 +136,7 @@ namespace bitbuilder
         }
 
         template <str::string_literal Name, bool IsInput>
-        constexpr auto fmt_str_bit_length()
+        INLINE constexpr auto fmt_str_bit_length()
         {
             size_t bit_length = 0;
 
@@ -157,7 +166,7 @@ namespace bitbuilder
         }
 
         template <str::string_literal Name, size_t N, bool IsInput>
-        constexpr auto normalize_string()
+        INLINE constexpr auto normalize_string()
         {
             str::string_literal<N + 1> result{};
 
@@ -229,8 +238,9 @@ namespace bitbuilder
 
         template <typename T>
         concept bigarg_concept = is_bitarg<std::decay_t<T>>::value;
+
         template <typename T>
-        T declval();
+        T my_declval();
 
         template <typename T>
         class uint_bvec
@@ -238,22 +248,27 @@ namespace bitbuilder
             T value;
 
         public:
-            constexpr uint_bvec() = default;
-            constexpr uint_bvec(T val) : value(val) {}
-            constexpr bool operator[](size_t index) const { return value & (1 << index); };
-            constexpr void set(size_t index, bool bit) { value = (value & ~(1 << index)) | (uint64_t(bit) << index); };
-            constexpr uint_bvec operator&(uint_bvec rhs) const { return value & (rhs.value); }
-            constexpr uint_bvec operator|(uint_bvec rhs) const { return value | (rhs.value); }
+            INLINE constexpr uint_bvec() = default;
+            INLINE constexpr uint_bvec(T val) : value(val) {}
+            INLINE constexpr bool operator[](size_t index) const { return value & (1 << index); };
+            INLINE constexpr void set(size_t index, bool bit) { value = (value & ~(1 << index)) | (uint64_t(bit) << index); };
+            template <size_t I>
+            INLINE constexpr void set(bool bit)
+            {
+                value = (value & ~(1 << I)) | (uint64_t(bit) << I);
+            };
+            INLINE constexpr uint_bvec operator&(uint_bvec rhs) const { return value & (rhs.value); }
+            INLINE constexpr uint_bvec operator|(uint_bvec rhs) const { return value | (rhs.value); }
 
-            constexpr bool any() const { return value; }
-            constexpr auto get() const { return value; }
+            INLINE constexpr bool any() const { return value; }
+            INLINE constexpr auto get() const { return value; }
         };
 
         template <typename T>
         uint_bvec(T) -> uint_bvec<T>;
 
         template <str::string_literal Name>
-        constexpr std::array<uint8_t, 26> compute_char_count()
+        INLINE constexpr std::array<uint8_t, 26> compute_char_count()
         {
             std::array<uint8_t, 26> ret{};
             for (auto ch : Name)
@@ -267,7 +282,7 @@ namespace bitbuilder
         }
 
         template <str::string_literal Name>
-        constexpr uint_bvec<uint32_t> compute_chars_used()
+        INLINE constexpr uint_bvec<uint32_t> compute_chars_used()
         {
             uint_bvec<uint32_t> ret{};
             for (auto ch : Name)
@@ -282,7 +297,7 @@ namespace bitbuilder
         }
 
         template <bigarg_concept... Args>
-        constexpr bool check_arg_distinct()
+        INLINE constexpr bool check_arg_distinct()
         {
             constexpr uint_bvec<uint32_t> used_ch_list[] = {
                 compute_chars_used<normalize_string<Args::name, sizeof(typename Args::type) * 8, true>()>()...};
@@ -299,7 +314,7 @@ namespace bitbuilder
         }
 
         template <bigarg_concept... Args>
-        constexpr std::array<uint8_t, 26> compute_total_char_count()
+        INLINE constexpr std::array<uint8_t, 26> compute_total_char_count()
         {
             constexpr std::array<uint8_t, 26> char_count[] = {
                 compute_char_count<normalize_string<Args::name, sizeof(typename Args::type) * 8, true>()>()...};
@@ -330,11 +345,12 @@ namespace bitbuilder
         {
 
         private:
+            // these functions are never evaluated for anything other than their types
             template <auto _Val, typename _Opt, typename... _Opts>
             static constexpr auto do_switch()
             {
                 if constexpr (_Val == _Opt::value)
-                    return declval<typename _Opt::type>();
+                    return my_declval<typename _Opt::type>();
                 else
                     return do_switch<_Val, _Opts...>();
             }
@@ -342,7 +358,7 @@ namespace bitbuilder
             template <auto _Val>
             static constexpr auto do_switch()
             {
-                return declval<no_opt>();
+                return my_declval<no_opt>();
             }
 
         public:
@@ -353,7 +369,7 @@ namespace bitbuilder
         using type_switch_t = typename type_switch<Val, Opts...>::type;
 
         template <char C, bigarg_concept Arg>
-        constexpr auto get_at()
+        INLINE constexpr auto get_at()
         {
             return +[](size_t index, uint64_t arg) -> bool {
                 int64_t ch_i = -1;
@@ -375,7 +391,7 @@ namespace bitbuilder
         }
 
         template <bigarg_concept... Args>
-        constexpr std::array<size_t, 26> compute_ownership_table()
+        INLINE constexpr std::array<size_t, 26> compute_ownership_table()
         {
             constexpr uint_bvec<uint32_t> used_ch_list[] = {
                 compute_chars_used<normalize_string<Args::name, sizeof(typename Args::type) * 8, true>()>()...};
@@ -397,7 +413,7 @@ namespace bitbuilder
         }
 
         template <bigarg_concept... Args>
-        constexpr std::array<std::array<bool (*)(size_t, uint64_t), sizeof...(Args)>, 26> compute_full_functor_table()
+        INLINE constexpr std::array<std::array<bool (*)(size_t, uint64_t), sizeof...(Args)>, 26> compute_full_functor_table()
         {
             std::array<std::array<bool (*)(size_t, uint64_t), sizeof...(Args)>, 26> res{};
 
@@ -414,7 +430,7 @@ namespace bitbuilder
         }
 
         template <bigarg_concept... Args>
-        constexpr std::array<bool (*)(size_t, uint64_t), 26> compute_functor_table()
+        INLINE constexpr std::array<bool (*)(size_t, uint64_t), 26> compute_functor_table()
         {
             constexpr auto ownership_table = compute_ownership_table<Args...>();
             constexpr auto fft = compute_full_functor_table<Args...>();
@@ -430,14 +446,55 @@ namespace bitbuilder
         }
 
         template <bigarg_concept... Args>
-        constexpr auto compute_value_table(Args... args)
+        INLINE constexpr auto compute_value_table(Args... args)
         {
             return std::array<uint64_t, sizeof...(Args)>{(uint64_t)args.val...};
+        }
+
+        template <char C, typename T, size_t N, size_t I>
+        INLINE constexpr void build_one(detail::uint_bvec<T>& out, std::array<size_t, 26>& index_tab,
+                                        const std::array<bool (*)(size_t, uint64_t), 26>& f_tab, const std::array<size_t, 26>& o_tab,
+                                        const std::array<uint64_t, N>& v_tab)
+        {
+            if constexpr (C == '0')
+            {
+                out.set(I, 0);
+            }
+            else if constexpr (C == '1')
+            {
+                out.set(I, 1);
+            }
+            else
+            {
+                auto idx = C - 'a';
+                auto func = f_tab[idx];
+                auto arg_index = o_tab[idx];
+                auto value = v_tab[arg_index];
+
+                out.set(I, func(index_tab[idx], value));
+                index_tab[idx]++;
+            }
+        }
+
+        template <str::string_literal Pattern, typename T, size_t N, size_t I = 0>
+        INLINE constexpr void build_all(detail::uint_bvec<T>& out, std::array<size_t, 26>& index_tab,
+                                        const std::array<bool (*)(size_t, uint64_t), 26>& f_tab, const std::array<size_t, 26>& o_tab,
+                                        const std::array<uint64_t, N>& v_tab)
+        {
+            if constexpr (I == Pattern.size)
+            {
+                return;
+            }
+            else
+            {
+                build_one<Pattern[I], T, N, I>(out, index_tab, f_tab, o_tab, v_tab);
+                build_all<Pattern, T, N, I + 1>(out, index_tab, f_tab, o_tab, v_tab);
+            }
         }
     } // namespace detail
 
     template <str::string_literal Pattern, detail::bigarg_concept... Args>
-    constexpr auto build_pattern(Args&&... args)
+    INLINE constexpr auto build_pattern(Args&&... args)
     {
         constexpr auto real_pat = detail::normalize_string<Pattern, detail::fmt_str_bit_length<Pattern, false>(), false>();
 
@@ -456,29 +513,7 @@ namespace bitbuilder
         constexpr auto f_tab = detail::compute_functor_table<Args...>();
         std::array<size_t, 26> index_tab{};
         detail::uint_bvec<selected_integer_type> out{};
-
-        for (size_t i = 0; i < real_pat.size; i++)
-        {
-            if (real_pat[i] == '0')
-            {
-                out.set(i, 0);
-            }
-            else if (real_pat[i] == '1')
-            {
-                out.set(i, 1);
-            }
-            else
-            {
-                auto idx = real_pat[i] - 'a';
-                auto func = f_tab[idx];
-                auto arg_index = o_tab[idx];
-                auto value = v_tab[arg_index];
-
-                out.set(i, func(index_tab[idx], value));
-                index_tab[idx]++;
-            }
-        }
-
+        detail::build_all<real_pat>(out, index_tab, f_tab, o_tab, v_tab);
         return out.get();
     }
 } // namespace bitbuilder
